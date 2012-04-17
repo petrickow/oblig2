@@ -2,4 +2,4 @@ My own version of sprintf - sprinter.
 
 See assignment http://www.uio.no/studier/emner/matnat/ifi/INF2270/v12/oblig/oblig2.html
 
-Written for 32bit OS, only tested with gcc -m32.
+Only tested with gcc -m32.
