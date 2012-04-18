@@ -2,12 +2,12 @@
 #
 #C-signature:   int sprinter(char *res, char *format, ...); %c %s
 #
-# edi == destination
-# ecx == format
-# edx == temp storage
-# ebx == temp string pointer
-# eax == bytes counter for return
-# esi == temp para_offset holder
+# edi == destination                (Must be stored)
+# ecx == format                     (Must be stored)
+# edx == temp storage               (Free for use)
+# ebx == temp string pointer        (Free for use)
+# eax == bytes counter return       (Must be stored)
+# esi == temp para_offset holder    (Free for use)
 # 
 # ASCII:
 # % = 37, c = 99, s = 115, d = 100, x = 120
@@ -21,22 +21,20 @@
 .globl sprinter
 
 .data
-para_offset:     .long   4
-
+para_offset:    .long   4 #offset for argument/parameter
+min_char:       .long   0 #for use when %<number><type> is used
+num_bytes:      .long   0 #the number of bytes copied
+hex_cpy:        .long   0
 
 sprinter:
-#init
+    #init
     pushl   %ebp
     movl    %esp, %ebp
     
-    #the destination (res), where we want the format
-    movl    8(%ebp), %edi
+    movl    8(%ebp), %edi   #the destination (res), where we want the format
     
-    #format, the "string" we are reading from
-    movl    12(%ebp), %ecx
+    movl    12(%ebp), %ecx  #format, the "string" we are reading from
     
-    #set counter (in this case eax since we are returning the number of bytes read)
-    movl    $0, %eax
 
 #Go through the pattern string and copy format (n(%ebp) to dest (%edi) 
 main_loop:
@@ -55,7 +53,7 @@ main_loop:
 
     incl    %ecx            # 
     incl    %edi            #increase all counters
-    incl    %eax            #
+    incl    num_bytes       #
 
     jmp     main_loop       #return to main_loop for continiued check
 
@@ -63,6 +61,7 @@ main_loop:
 # Når vi har et %-tegn les neste tegn (c, s, %, x og d) og switch til riktig handling
 pros_loop:
     incl    %ecx            # increase sorce counter get next char...
+#TODO: If we have %<number>, store in min_char for use in other function
 
                             # switch-ish
     cmpb    $37, (%ecx)     #   case % (ascii == 37)
@@ -88,7 +87,7 @@ pros_handle:
     movb    %dl, (%edi)     # to destination
     incl    %ecx          
     incl    %edi            # increase all counters
-    incl    %eax
+    incl    num_bytes
     jmp     main_loop       # return to main_loop
  
 #c, write char from args
@@ -96,39 +95,69 @@ c_handle:
     movl    para_offset, %esi
     movl    (%ebp, %esi, 4), %ebx #move the right number of bytes into stack to find next parameter
     incl    para_offset
-
-    #movb    16(%ebp), %bl   #TODO get first arg pointer (after src & dest), but what if its the third?
     
     movb    %bl, (%edi)     # copy to destination
     incl    %ecx            #
     incl    %edi            # increase counters
-    incl    %eax            #
+    incl    num_bytes       #
     jmp     main_loop       # retrun to main_loop
 
+#Prepare for string copyloop
 s_handle:
     incl    %ecx            
     movl    para_offset, %esi       #move parameter offset into esi
     movl    (%ebp, %esi, 4), %ebx   #multiply parameter offset with 4 and copy content into ebx
     incl    para_offset             #increase para_offset with one (multiplied with 4 to get next parameter)
-    
-    
+#    jmp     s_loop
+#Copy each char into the new string    
 s_loop:
-    cmpb    $0, (%ebx)      #end of string
-    jz      main_loop       #return to main_loop
+    cmpb    $0, (%ebx)      #   end of string
+    jz      main_loop       #   return to main_loop
 
-    movb    (%ebx), %dl     #copy char to
-    movb    %dl, (%edi)     #destination
+    movb    (%ebx), %dl     #   copy char to
+    movb    %dl, (%edi)     #   destination
 
     incl    %ebx            #
-    incl    %edi            #increase counters
-    incl    %eax            #
-    jmp     s_loop          #__loop__
+    incl    %edi            #   increase counters
+    incl    num_bytes       #
+    jmp     s_loop          #   __loop__
     
 
-#How to predict size of arg
+#Turn hex into string
 x_handle:
+   #(%eax:%eax/eBx,%edx:%eax%eBx)???
+
+    movl    $0, %eax                #0 eax for use in division
+    
+    movl    para_offset, %esi
+    movl    (%ebp, %esi, 4), %eax   #move parameter to %eax
+    incl    para_offset             #increase para_offset so we are ready to recive next parameter
+    
+    movl    $0, %esi                #zero esi for temp storage
+    
+#devide hex, use esi as temp storage for remainder
+#eax contains value, eax get result, edx gets remainder
+x_div:
+    #TODO Del eax på 16, lagre rest og del evt opp neste produkt
+    divl    %ebx
+    movl    %eax, %ebx      #move result into ebx for next division
+    movl    %edx, %esi      #save remainder into temp register for writing into result-string
+    
+    incl    hex_cpy         #increase the number of chars/bytes needed for string->hexnumber
+    incl    %esi            #make ready for next remainder
+    
+    
+    #if edx (rest) <= 16 fin
+    #if edx > 16 del mer
+    #cmpl    $16, %edx       #if remainder is smaller than 16 we save eax/ebx into esi and start copy into destination
+    ##jge     x_div
+    
+#else 
+    
     
 
+#Copy to destination
+x_loop:
 
 d_handle:
 
@@ -140,6 +169,7 @@ fault_handle:
 ret_rou:
     incl    %edi
     movl    $0, %edi        #add zerobyte to the end of the string
+    movl    num_bytes, %eax
     popl    %ebp
     ret
 

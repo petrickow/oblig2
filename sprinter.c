@@ -31,13 +31,12 @@ int main ( void )
     
     int ret = 0;
 
-    fprintf(stderr, "sprinter(str, <pattern>, %s, %c, %c, %s)\n", text1, test_char, test_char2, text2);
+    fprintf(stderr, "sprinter(str, <pattern>, %s, %x, %c, %s)\n", text1, test_hex, test_char2, text2);
 
     //TODO alter here for more testes
-    ret = sprinter(str, "Test %s sprinter %c %c, %s", text1, test_char, test_char2, text2);
+    ret = sprinter(str, "Test %s sprinter %x %c, %s", text1, test_hex, test_char2, text2);
 
 
-    fprintf(stderr, "________________________\n", str);
     fprintf(stderr, "\nres: \'%s\'\n", str);
     printf("Returned size: %d\n", ret);
     
