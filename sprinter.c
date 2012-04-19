@@ -18,7 +18,8 @@ int main ( void )
 
     char* text1 = malloc(200);
     char* text2 = malloc(200);
-    
+    char* tmp1 = text1; //For use in free
+    char* tmp2 = text2;
     char test_char = 'X';
     char test_char2 = 'Z';
     
@@ -42,17 +43,27 @@ int main ( void )
     //TEST:
     ret = sprinter(str, "Neg: %d Pos: %d Test %s sprinter %s. Char %c, Hex %x, Char %c", tint1, tint2, text1, text2, test_char, test_hex, test_char2);
     s_ret = sprintf(fasit, "Neg: %d Pos: %d Test %s sprinter %s. Char %c, Hex %x, Char %c", tint1, tint2, text1, text2, test_char, test_hex, test_char2);
-    
+    //RESULT:
     fprintf(stderr, "\nRESULT:\t\'%s\'\nSPRINT:\t\'%s\'\n", str, fasit);
-    printf("Returned size: %d\n Correct size: %d\n", ret, s_ret);
+    fprintf(stderr, "Returned size: %d\n Correct size: %d\n", ret, s_ret);
+
+    //FAULT TEST:
+    memset(str, 'a', 200); //to test that we zero-terminate properly
+    fprintf(stderr, "FAULT: Here but no longer due to %%%%%%-, this will not be written \'%s\'\n", text1);
+    ret = sprinter(str, "FAULT: Here but no longer due to %%%-, this will not be written %s", text1);
+    //FAULT RESULT
+    fprintf(stderr, "%s\nReturn value: %d\n", str, ret);
+
     
-    //MEMORY LEAK! TODO? 
+
+    fprintf(stderr, "\nTermination, memleak not fixed!\n");
     
-//    free(text1);
+//    free(text1); why not? Guess: pointer has made invalid by sprinter, hmm TODO 
 //    free(text2);
-//    free(pattern);
+    free(tmp1);
+    free(tmp2);
 
-
+    free(fasit);
     free(str);
     return 0;
 }

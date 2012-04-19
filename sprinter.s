@@ -1,5 +1,11 @@
 #########################################################
-#
+# 
+#   ////---\\\\
+#   //       \\
+#   $  O   0  $
+#   |    L    |
+#   | \_____/ |
+#    \_U_____/
 #   C-signature:   int sprinter(char *res, char *format, ...); %c %s
 #
 # edi == destination                (Must be stored)
@@ -37,7 +43,7 @@ sprinter:
     pushl   %ebp            #init
     movl    %esp, %ebp
     
-    movl    8(%ebp), %edi   #the destination (res), where we want the format
+    movl    8(%ebp), %edi   #the destination (result), where we want the format to be copied
     
     movl    12(%ebp), %ecx  #format, the "string" we are reading from
     
@@ -61,14 +67,17 @@ main_loop:
 
     jmp     main_loop       #return to main_loop for continiued read
 
+width:
+
 
 # Når vi har et %-tegn les neste tegn (c, s, %, x og d) og switch til riktig handling
 pros_loop:
     incl    %ecx            # increase sorce counter get next char after %
 
 #TODO: If we have %<number>, store in min_char for use in other function
-
+        
                             # switch-ish
+
     cmpb    $37, (%ecx)     #   case % (ascii == 37)
     je      pros_handle 
     
@@ -90,7 +99,7 @@ pros_loop:
 pros_handle:
     movb    (%ecx), %dl     # copy char (%)
     movb    %dl, (%edi)     # to destination
-    incl    %ecx          
+    incl    %ecx            # 
     incl    %edi            # increase all counters
     incl    num_bytes
     jmp     main_loop       # return to main_loop
@@ -258,19 +267,19 @@ d_prep_cpy:
 
 fault_handle:
     movl    $-1, %eax       #return -1...
-    #TODO clear edi and return??
+    #TODO clear edi and return? Not according to sprintf, moved 0-byte extension to return: so we don't get segfault
     jmp     return
 
 ret_rou:
-    incl    %edi            
-    movl    $0, %edi            #add zerobyte to the end of the string
     movl    num_bytes, %eax     #move number of bytes copied to eax for return 
     jmp     return
 
 return:
+    #incl    %edi            
+    movl    $0, (%edi)            #add zerobyte to the end of the string, does not work!
+
     popl    %ebp
     ret
 
     
-
 
