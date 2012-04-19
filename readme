@@ -1,5 +1,14 @@
 My own version of sprintf - sprinter.
 
+Only allowed % are:  %c, %d, %s, %x og %%.
+%<number> - minimum number of chars
+
 See assignment http://www.uio.no/studier/emner/matnat/ifi/INF2270/v12/oblig/oblig2.html
 
 Only tested with gcc -m32.
+#   ////---\\\\
+#   //       \\
+#   $  O   0  $
+#   |    L    |
+#   | \_____/ |
+#    \_U_____/
