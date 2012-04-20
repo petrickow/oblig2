@@ -41,22 +41,43 @@ int main ( void )
     fprintf(stderr, "TO TEST:\tsprinter(str, <pattern>, %d, %d, %s, %x, %c, %s)\n", tint1, tint2, text1, test_hex, test_char2, text2);
 
     //TEST:
-    ret = sprinter(str, "Neg: %d Pos: %d Test %s sprinter %s. Char %c, Hex %x, Char %c", tint1, tint2, text1, text2, test_char, test_hex, test_char2);
-    s_ret = sprintf(fasit, "Neg: %d Pos: %d Test %s sprinter %s. Char %c, Hex %x, Char %c", tint1, tint2, text1, text2, test_char, test_hex, test_char2);
+    ret = sprinter(str, "Ett tegn: '%c'.", 'x');
+    s_ret = sprintf(fasit, "Ett tegn: '%c'.", 'x');
     //RESULT:
     fprintf(stderr, "\nRESULT:\t\'%s\'\nSPRINT:\t\'%s\'\n", str, fasit);
     fprintf(stderr, "Returned size: %d\n Correct size: %d\n", ret, s_ret);
 
     //FAULT TEST:
-    memset(str, 'a', 200); //to test that we zero-terminate properly
+/*    memset(str, 'a', 200); //to test that we zero-terminate properly
     fprintf(stderr, "FAULT: Here but no longer due to %%%%%%-, this will not be written \'%s\'\n", text1);
     ret = sprinter(str, "FAULT: Here but no longer due to %%%-, this will not be written %s", text1);
     //FAULT RESULT
-    fprintf(stderr, "%s\nReturn value: %d\n", str, ret);
+    fprintf(stderr, "%s\nReturn value: %d\n", str, ret);*/
 
+    int r1;
+    int r2;
+
+    char t1[400];
+    char t2[400];
     
+    r1 = sprinter(t1, "Ett tegn: '%c'.", 'x');
+    r2 = sprintf(t2, "Ett tegn: '%c'.", 'x');
+    printf("%s and %s\nres = %d, fasit = %d\n", t1, t2, r1, r2);
+    
+    r1 = sprinter(t1, "To tegn: '%c', '%c'.", 'x', 'y');
+    r2 = sprintf(t2, "To tegn: '%c', '%c'.", 'x', 'y');
+    printf("%s and %s\nres = %d, fasit = %d\n", t1, t2, r1, r2);
 
-    fprintf(stderr, "\nTermination, memleak not fixed!\n");
+    r1 = sprinter(t1, "To streng: '%s', '%s'.", "streng 1", "streng 2");
+    r2 = sprintf(t2, "To streng: '%s', '%s'.", "streng 1", "streng 2");
+    printf("%s and %s\nres = %d, fasit = %d\n", t1, t2, r1, r2);
+
+    /*r1 = sprinter(t1, "En streng ett tegn: '%s', '%c'.", "streng 1", 'x');
+    r2 = sprintf(t2, "En streng: '%s', '%c:'.", "streng 1", 'x');
+    printf("%s and %s\nres = %d, fasit = %d\n", t1, t2, r1, r2);
+*/
+
+    fprintf(stderr, "\nTermination\n");
     
 //    free(text1); why not? Guess: pointer has made invalid by sprinter, hmm TODO 
 //    free(text2);
