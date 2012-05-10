@@ -8,12 +8,13 @@
 #    \_U_____/
 #   C-signature:   int sprinter(char *res, char *format, ...); %c %s
 #
-# %edi == destination                (Must be stored)
+# %eax == used in s_handle       (Free for use)
+# %ebx == temp string pointer        (Free for use) used in c/x - handle, x-div 
 # %ecx == format                     (Must be stored)
 # %edx == temp storage               (Free for use)
-# %ebx == temp string pointer        (Free for use)
-# %eax == bytes counter return       (Must be stored)
+#
 # %esi == para_offset holder    (LOCKED)
+# %edi == destination                (Must be stored)
 # 
 # ASCII:
 # % = 37, c = 99, s = 115, d = 100, x = 120
@@ -40,19 +41,24 @@ num_bytes:      .long   0 #the number of bytes copied
 div_push:       .long   0 #number of values pushed onto stack in hex division
 ten:            .long   10#devide %d by ten to find char
 #sixteen:        .long   16
+width:          .long   0
+length:         .long   0
 
 sprinter:
     pushl   %ebp            #init
     movl    %esp, %ebp
-    
+    #pushl   %edi           #save edi, ebx?, esi
+
+
     movl    8(%ebp), %edi   #the destination (result), where we want the format to be copied
     
     movl    12(%ebp), %ecx  #format, the "string" we are reading from
     
-    #movl    $4, para_offset #use %esi instead, problem when sprinter is call multiple times
-    movl    $4, %esi        #this instead of global para_offset (offset is always 4)
+    #movl   $4, para_offset #use %esi instead, problem when sprinter is call multiple times
+    movl    $4, %esi        #this instead of global para_offset (offset is always 4 unless we add something to the stack?)
     movl    $0, num_bytes   #another solution, zero each counter, but they are still global and a threat
-    movl    $0, div_push
+    movl    $0, div_push    #number of pushes made during division
+    movl    $0, width       #set to zero, but if a part of %-parameter (ex: %4s) it will be set
     
 #Go through the pattern string and copy format (n(%ebp) to dest (%edi) 
 main_loop:
@@ -63,7 +69,8 @@ main_loop:
     cmpb    $37, (%ecx)     #ascii 37 == %
                             #if char == %
     je      pros_loop       #   jump to handling of %
-                            #else 
+                            #else
+    xor     %eax, %eax
     movb    (%ecx), %dl     #   copy char to dest
     movb    %dl, (%edi)     #
 
@@ -77,75 +84,194 @@ main_loop:
 
 # Når vi har et %-tegn les neste tegn (c, s, %, x og d) og switch til riktig handling
 pros_loop:
-    incl    %ecx            # increase sorce counter get next char after %
+    movl    $0, width       #   zero width, is_a_number uses pros_switch, all other routines returns to pros_loop
+    incl    %ecx            #   increase sorce counter get next char after %
+    
 
-#TODO: If we have %<number>, store in min_char for use in other function
-        
+pros_switch:
                             # switch-ish
-    cmpb    $37, (%ecx)     #   case % (ascii == 37)
+    cmpb    $'%', (%ecx)     #   case % (ascii == 37)
     je      pros_handle 
     
-    cmpb    $99, (%ecx)     #   case c (ascii == 99)
+    cmpb    $'c', (%ecx)     #   case c (ascii == 99)
     je      c_handle
     
-    cmpb    $115, (%ecx)    #   case s (ascii == 115)
+    cmpb    $'s', (%ecx)    #   case s (ascii == 115)
     je      s_handle
 
-    cmpb    $100, (%ecx)    #   case d (ascii == 100)
+    cmpb    $'d', (%ecx)    #   case d (ascii == 100)
     je      d_handle
 
-    cmpb    $120, (%ecx)    #   case x (ascii == 120)
+    cmpb    $'x', (%ecx)    #   case x (ascii == 120)
     je      x_handle      
 
-    jmp     fault_handle    #   default fault_handle, return -1
+    jmp     is_it_a_number
+    
+    #jmp     fault_handle    #   default fault_handle, return -1
+
+is_it_a_number:
+
+    cmpb    $48, (%ecx)     #0
+    je      it_is
+
+    cmpb    $49, (%ecx)     #1
+    je      it_is
+
+    cmpb    $50, (%ecx)     #2
+    je      it_is
+
+    cmpb    $51, (%ecx)     #3
+    je      it_is
+
+    cmpb    $52, (%ecx)     #4
+    je      it_is
+
+    cmpb    $53, (%ecx)     #5
+    je      it_is
+
+    cmpb    $54, (%ecx)     #6
+    je      it_is
+
+    cmpb    $55, (%ecx)     #7
+    je      it_is
+
+    cmpb    $56, (%ecx)     #8
+    je      it_is
+
+    cmpb    $57, (%ecx)     #9
+    je      it_is
+
+    jmp     fault_handle    #   the next char is not a valid char, and not a number, fault_handling. Return -1
+
+it_is:
+    
+    movl    $0, %eax        #   If we have a number we need to multiply the previous number with ten...
+    movl    width, %eax     #   put current value of width in eax
+    mull    ten             #   multiply
+    movl    %eax, width     #   put the result in width
+    
+    movl    $0, %eax        #   zero eax,
+    movb    (%ecx), %al     #   get the char from source
+    subl    $48, %eax       #   subtract 48 to get the right numerical value
+
+    addl    %eax, width     #   add the new value with old
+    
+    incl    %ecx
+    jmp     pros_switch     #   go back to pros_loop to check if the next char is %,c,s,d,x or another number
+
+
+    #put the value in variable, register or stack, after we have read (and thus know the size of the sorce) we can add n whitespace first...
 
 #double %, write % into dest string
 pros_handle:
-    movb    (%ecx), %dl     # copy char (%)
-    movb    %dl, (%edi)     # to destination
+    movb    (%ecx), %dl     #   copy char (%)
+    movb    %dl, (%edi)     #   to destination
     incl    %ecx            # 
-    incl    %edi            # increase all counters
+    incl    %edi            #   increase all counters
     incl    num_bytes
-    jmp     main_loop       # return to main_loop
+    jmp     main_loop       #   return to main_loop
  
 #c, write char from n-th parameter
 c_handle:
-    incl    %ecx            #not to read char after % (c in this case)
+    incl    %ecx                    #   not to read char after % (c in this case)
     
-#    movl    para_offset, %esi
-    movl    (%ebp, %esi, 4), %ebx #move the right number of bytes into stack to find next parameter
+    movl    (%ebp, %esi, 4), %ebx   # move the right number of bytes into stack to find next parameter
     incl    %esi
     
-    movb    %bl, (%edi)     # copy to destination
+c_pad:
+    cmpl    $1, width
+    jle      c_finish        #   when width and is equal to 1 or width is less than 1 we can start copying the char itself
     
-    incl    %edi            # increase counters
+    movb    $' ', (%edi)    #   insert space and increase edi
+    incl    %edi
     incl    num_bytes       #
     
-    jmp     main_loop       # retrun to main_loop
+    decl    width           #   decrease width (it has to be bigger than counter (bytes to be inserted) for this to happend)
+    jmp     c_pad
+
+
+c_finish:
+    
+    movb    %bl, (%edi)             # copy to destination
+
+    incl    %edi                    # increase counters
+    incl    num_bytes               #
+    
+    jmp     main_loop               # retrun to main_loop
+
+    
 
 #Prepare for string copyloop
+#   
+#   
 s_handle:
-    incl    %ecx                    #not to read char after % (s in this case)
-
-#    movl    para_offset, %esi       #move parameter offset into esi
-    movl    (%ebp, %esi, 4), %eax   #multiply parameter offset with 4 and copy content into eax (pointer to string)
+    incl    %ecx                    #   not to read char after % (s in this case)
     
-    incl    %esi             #increase para_offset with one (multiplied with 4 to get next parameter)
-#    jmp     s_loop                 #redundant
+    movl    $0, %edx
+    movl    (%ebp, %esi, 4), %edx   #   multiply parameter offset with 4 and copy content into edx (pointer to string)
+    #incl    %esi                    #   increase para_offset with one (multiplied with 4 to get next parameter)
+    movl    $0, length              #not in use TODO, use ebx instead, for comparrison
+    movl    $0, %ebx                #   number of chars copied set to zero in %edx and use as counter
+
+s_length:
+      
+    cmpb    $0, (%edx)
+    je      s_pad
+    incl    %ebx
+    incl    %edx
+    jmp     s_length
+
+s_pad:
+    cmpl    %ebx, width
+    jle     s_pre_loop      #   when width and %edx (number of chars to copy) is equal or width is less than %edx we can start copying the string itself
+    
+    movb    $' ', (%edi)    #   insert space and increase edi
+    incl    %edi
+    incl    num_bytes
+    decl    width           #   decrease width (it has to be bigger than counter (bytes to be inserted) for this to happend)
+    jmp     s_pad
 
 #Copy each char into the new string    
+s_pre_loop:
+    #xor     %edx, %edx
+    movl    (%ebp, %esi, 4), %edx   #   multiply parameter offset with 4 and copy content into edx (pointer to string)
+    incl    %esi                    #   increase para_offset with one (multiplied with 4 to get next parameter)
+    
 s_loop:
-    movl    $0, %edx
-    cmpb    $0, (%eax)      #   end of string
-    jz      main_loop       #   return to main_loop
-
-    movb    (%eax), %dl     #   copy char to
-    movb    %dl, (%edi)     #   destination
-
-    incl    %eax            #
+    
+    cmpb    $0, (%edx)      #   end of string
+    je      main_loop           #   everything that we want has been stored on stack, check if we need padding and start cpy
+    
+    movb    (%edx), %al     #   push the current %edx into %al
+    movb    %al, (%edi)     #   move the byte to destination
+    incl    %edx
     incl    %edi            #   increase counters
     incl    num_bytes       #   increase number of bytes read
+    
     jmp     s_loop          #   __loop__
+
+#s_cpy_loop:
+    
+    #popl    %eax            #   get next char  ALT
+    
+    #pushl   %ecx
+
+    #movb    (%eax), %cl     # TODO!!!! NOOB!! REVERSERT! ALT
+    #movb    %al, (%edi)     #   move the byte to destination
+
+    #popl    %ecx
+    #decl    %eax
+    #incl    %edi            #   increase counters
+    #incl    num_bytes       #   increase number of bytes read
+    #decl    %ebx            #   decrease number of bytes to copy
+    #cmpl    $0, %ebx        #   if edx is larger than 0 continue
+    #jg      s_cpy_loop
+    
+    #jmp     main_loop
+    ######################################TODO#############################################33
+#sjekk opp i jump og sammenligning. OM edx (antall bytes er 0) så er vi ferdig, hopp tilbake til hovedloop
+#om ikke fortsett å poppe
+
     
 
 #Turn hex into string
@@ -153,13 +279,13 @@ x_handle:
     movl    $0, div_push            #set push counter to 0
 
                                     #division rule: (%eax:%eax/eBx,%edx:%eax%eBx) chose eBx as holder for 16
-    incl    %ecx                    #not to read char after %
+    incl    %ecx                    #not to read char after % (x in this case)
     movl    $0, %eax                #0 eax for storange of result and value in division
     
-#    movl    para_offset, %esi
     movl    (%ebp, %esi, 4), %eax   #move parameter to %eax, should be hexadecimal
     incl    %esi             #increase para_offset so we are ready to recive next parameter
-    
+
+#TODO    pushl   %ebx                    #store ebx since it is bounded?
     movl    $16, %ebx               #get ebx ready for division (eax(test_hex)/ebx(16)), could use variable
     jmp     x_div
 
@@ -172,17 +298,19 @@ x_div:
        
     pushl   %edx            #push remainder into stack until we can write
     
-    incl    div_push         #increase the number of push's needed for string->hexnumber
+    incl    div_push        #increase the number of push's needed for string->hexnumber
     
                             #if eax (result) <= 16 
                             #if eax > 16 del mer
     cmpl    %ebx, %eax      #if result is smaller than 16 we save eax/ebx into esi and start copy into destination
     jge     x_div           #eax is grater or jump to x_div and continiue
     
-    pushl   %eax            #we want to store eax as well (last char in hex)
-    incl    div_push         #n+1 push
-                            #else 
-    jmp     x_prep_cpy_loop #redundant
+    cmpl    $0, %eax        #if %eax == 0
+    je      x_prep_cpy_loop #   don't push
+
+    pushl   %eax            #else: 
+                            #   we want to store eax as well (last char in hex)
+    incl    div_push        #   n+1 push
 
 #prepare each element from the stack for copy
 x_prep_cpy_loop:
@@ -211,19 +339,20 @@ x_cpy_loop:
     cmpl    $0, div_push        #count down to 0
     
     jne     x_prep_cpy_loop     #if 0...continiue to copy
-    jmp     main_loop           #else return to main_loop
 
+    popl    %ebx                #restore %ebx
+    jmp     main_loop           #else return to main_loop
+#TODO
 
 #Handle integer
 d_handle:
     incl    %ecx                    #not to read char after % (d)
     
     movl    $0, div_push            #set push counter to 0
-#    movl    para_offset, %esi
     movl    (%ebp, %esi, 4), %eax   #move parameter to %eax, should be int
-    incl    %esi             #increase para_offset so we are ready to recive next parameter
+    incl    %esi                    #increase para_offset so we are ready to recive next parameter
 
-    testl   %eax, %eax                #test if eax is negative
+    testl   %eax, %eax              #test if eax is negative
     js      d_neg                   #if: add '-'
     jmp     d_div                   #else: divide pr usual
 
@@ -239,9 +368,11 @@ d_div:
     movl    $0, %edx                #zero %edx (remainder) for each loop
     
     
-    idivl   ten                     #devide %eax with ten
-    
+    divl   ten                      #devide %eax with ten
+     
+
     addl    $48, %edx               #+48 to value to get right ascii char POOR with negative
+
     pushl   %edx                    #save to stack
     incl    div_push                #increase num push
 
@@ -249,14 +380,18 @@ d_div:
     jge     d_div                   #__loop__
 
 #this can be dropped to save one push/pop-op
-    addl    $48, %eax
-    pushl   %eax                    #push remaining value
-    incl    div_push                #increase num push
-    jmp     d_prep_cpy              #start copy to destination
+    cmpl    $0, %eax                #if %eax == 0
+    je      d_prep_cpy              #   don't push, we don't need 0 infront of numerical char
+
+    addl    $48, %eax               # else
+    pushl   %eax                    #   push remaining value
+    incl    div_push                #   increase num push
+    jmp     d_prep_cpy              #   start copy to destination
 
 d_prep_cpy:
     movl    $0, %eax                #zero %eax
     popl    %eax                    #pop next value
+    
     movb    %al, (%edi)             #copy to destination
     
     incl    %edi                    #increase destination index
@@ -269,6 +404,7 @@ d_prep_cpy:
 
     
 
+ 
 
 
 fault_handle:
@@ -283,8 +419,15 @@ ret_rou:
 return:
     #incl    %edi            
     movl    $0, (%edi)            #add zerobyte to the end of the string
+    
+    #popl   %edi
     popl    %ebp
+    
     ret
 
     
+   
+
+
+
 
